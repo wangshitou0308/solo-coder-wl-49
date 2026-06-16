@@ -35,12 +35,16 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
     const siteResults = queryAll(db, 'SELECT * FROM compost_sites');
 
     for (const site of siteResults) {
-      const binCount = queryOne(db, 'SELECT COUNT(*) as count FROM compost_bins WHERE site_id = ?', [site.id]) as any;
-      const activeBins = queryOne(db, "SELECT COUNT(*) as count FROM compost_bins WHERE site_id = ? AND stage != 'harvested'", [site.id]) as any;
+      const bins = queryAll(db, 'SELECT * FROM compost_bins WHERE site_id = ?', [site.id]);
+      const activeBins = bins.filter((b: any) => b.stage !== 'harvested');
 
-      (site as any).binCount = binCount.count;
-      (site as any).status = activeBins.count > 0 ? 'active' : 'inactive';
-      sites.push(site);
+      const siteWithBins = {
+        ...site,
+        bins,
+        binCount: bins.length,
+        status: activeBins.length > 0 ? 'active' : 'inactive',
+      };
+      sites.push(siteWithBins);
     }
 
     res.json({ success: true, data: sites });

@@ -52,7 +52,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { phone, password } = req.body as LoginBody;
+    const { phone, password, role } = req.body as LoginBody;
     if (!phone || !password) {
       res.status(400).json({ success: false, error: '手机号和密码不能为空' });
       return;
@@ -63,6 +63,17 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
     if (!user) {
       res.status(401).json({ success: false, error: '手机号或密码错误' });
+      return;
+    }
+
+    if (role && role !== (user as any).role) {
+      const roleLabels: Record<string, string> = {
+        admin: '管理员',
+        manager: '堆肥管理员',
+        resident: '居民',
+      };
+      const expected = roleLabels[(user as any).role] || (user as any).role;
+      res.status(401).json({ success: false, error: `该账号角色为${expected}，请选择正确的角色登录` });
       return;
     }
 

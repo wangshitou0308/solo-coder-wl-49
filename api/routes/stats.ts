@@ -22,29 +22,36 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response): Prom
     }
     if (startDate) {
       depositWhere.push("d.created_at >= ?");
-      depositParams.push(startDate);
+      depositParams.push(String(startDate) + ' 00:00:00');
     }
     if (endDate) {
       depositWhere.push("d.created_at <= ?");
-      depositParams.push(endDate);
+      depositParams.push(String(endDate) + ' 23:59:59');
     }
 
     const depositWhereStr = depositWhere.length > 0 ? 'WHERE ' + depositWhere.join(' AND ') : '';
 
-    const todayParams = depositParams.filter((_p, i) => {
-      const clause = depositWhere[i];
-      return clause && !clause.includes("date('now')");
-    });
-    const todayWhere = depositWhere.length > 0 ? 'AND ' + depositWhere.filter(c => !c.includes("date('now')")).join(' AND ') : '';
+    let todayWhere: string[] = [];
+    let todayParams: any[] = [];
+    if (siteId) {
+      todayWhere.push('bin_id IN (SELECT id FROM compost_bins WHERE site_id = ?)');
+      todayParams.push(siteId);
+    }
+    if (residentId) {
+      todayWhere.push('resident_id = ?');
+      todayParams.push(residentId);
+    }
+    todayWhere.unshift("date(created_at) = date('now')");
+    const todayWhereStr = 'WHERE ' + todayWhere.join(' AND ');
 
     const todayWeightResult = queryOne(db,
-      `SELECT COALESCE(SUM(weight), 0) as total FROM deposits d WHERE date(d.created_at) = date('now') ${todayWhere}`,
+      `SELECT COALESCE(SUM(weight), 0) as total FROM deposits ${todayWhereStr}`,
       todayParams
     ) as any;
     const todayWeight = todayWeightResult ? todayWeightResult.total : 0;
 
     const totalWeightResult = queryOne(db,
-      `SELECT COALESCE(SUM(weight), 0) as total FROM deposits ${depositWhereStr}`,
+      `SELECT COALESCE(SUM(weight), 0) as total FROM deposits d ${depositWhereStr}`,
       depositParams
     ) as any;
     const totalCarbonReduction = totalWeightResult ? totalWeightResult.total * 0.3 : 0;
@@ -61,7 +68,8 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response): Prom
     const activeSites = activeSitesResult ? activeSitesResult.count : 0;
 
     const todayDepositorsResult = queryOne(db,
-      `SELECT COUNT(DISTINCT resident_id) as count FROM deposits WHERE date(created_at) = date('now')`
+      `SELECT COUNT(DISTINCT resident_id) as count FROM deposits ${todayWhereStr}`,
+      todayParams
     ) as any;
     const todayDepositors = todayDepositorsResult ? todayDepositorsResult.count : 0;
 
@@ -86,7 +94,7 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response): Prom
       const bins: any[] = [];
       let hasActive = false;
       for (const bin of binResults) {
-        bins.push({ binId: (bin as any).id, name: (bin as any).name, stage: (bin as any).stage });
+        bins.push({ binId: (bin as any).id, binName: (bin as any).name, name: (bin as any).name, stage: (bin as any).stage });
         if ((bin as any).stage !== 'harvested') hasActive = true;
       }
 
@@ -98,26 +106,78 @@ router.get('/dashboard', authenticate, async (req: Request, res: Response): Prom
       });
     }
 
+    let trendWhere: string[] = [];
+    let trendParams: any[] = [];
+    if (siteId) {
+      trendWhere.push('bin_id IN (SELECT id FROM compost_bins WHERE site_id = ?)');
+      trendParams.push(siteId);
+    }
+    if (residentId) {
+      trendWhere.push('resident_id = ?');
+      trendParams.push(residentId);
+    }
+    if (startDate) {
+      trendWhere.push("created_at >= ?");
+      trendParams.push(String(startDate) + ' 00:00:00');
+    } else {
+      trendWhere.push("created_at >= date('now', '-6 months')");
+    }
+    if (endDate) {
+      trendWhere.push("created_at <= ?");
+      trendParams.push(String(endDate) + ' 23:59:59');
+    }
+    const trendWhereStr = trendWhere.length > 0 ? 'WHERE ' + trendWhere.join(' AND ') : '';
+
     const trendResults = queryAll(db,
-      `SELECT strftime('%Y-%m', created_at) as month, SUM(weight) as weight, COUNT(*) as count
+      `SELECT strftime('%Y-%m', created_at) as month, COALESCE(SUM(weight), 0) as weight, COUNT(*) as count
        FROM deposits
-       WHERE created_at >= date('now', '-6 months')
+       ${trendWhereStr}
        GROUP BY strftime('%Y-%m', created_at)
-       ORDER BY month DESC`
+       ORDER BY month ASC`
+      ,
+      trendParams
     );
     const monthlyTrend = trendResults.map(row => ({
       month: (row as any).month,
       weight: (row as any).weight,
       count: (row as any).count,
+      carbonReduction: ((row as any).weight || 0) * 0.3,
     }));
 
+    let residentWhere: string[] = [];
+    let residentParams: any[] = [];
+    if (siteId) {
+      residentWhere.push('d.bin_id IN (SELECT id FROM compost_bins WHERE site_id = ?)');
+      residentParams.push(siteId);
+    }
+    if (startDate) {
+      residentWhere.push("d.created_at >= ?");
+      residentParams.push(String(startDate) + ' 00:00:00');
+    }
+    if (endDate) {
+      residentWhere.push("d.created_at <= ?");
+      residentParams.push(String(endDate) + ' 23:59:59');
+    }
+    const residentWhereStr = residentWhere.length > 0 ? 'AND ' + residentWhere.join(' AND ') : '';
+
     const topResults = queryAll(db,
-      `SELECT id, name, points FROM users WHERE role = 'resident' ORDER BY points DESC LIMIT 10`
+      `SELECT u.id as id, u.name as name, u.points as points,
+              COALESCE(SUM(d.weight), 0) as totalWeight
+       FROM users u
+       LEFT JOIN deposits d ON u.id = d.resident_id ${residentWhereStr}
+       WHERE u.role = 'resident'
+       GROUP BY u.id, u.name, u.points
+       ORDER BY totalWeight DESC, u.points DESC
+       LIMIT 10`,
+      residentParams
     );
-    const topResidents = topResults.map(row => ({
-      id: (row as any).id,
-      name: (row as any).name,
-      points: (row as any).points,
+    const topResidents = topResults.map((row: any, idx: number) => ({
+      residentId: row.id,
+      id: row.id,
+      name: row.name,
+      points: row.points,
+      totalWeight: row.totalWeight || 0,
+      rank: idx + 1,
     }));
 
     res.json({
