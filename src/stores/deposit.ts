@@ -11,8 +11,10 @@ export interface Deposit {
   binName?: string;
   weight: number;
   wasteType: 'kitchen' | 'garden';
+  wasteTag?: string;
   pointsEarned?: number;
   points?: number;
+  carbonReduction?: number;
   createdAt: string;
 }
 
@@ -47,6 +49,7 @@ interface DepositState {
     binId: string;
     weight: number;
     wasteType: 'kitchen' | 'garden';
+    wasteTag?: string;
     points?: number;
   }) => Promise<Deposit>;
   fetchDeposits: (filters?: DepositFilters) => Promise<void>;

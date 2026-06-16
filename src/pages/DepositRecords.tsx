@@ -103,6 +103,7 @@ export default function DepositRecords() {
                 <th className="px-4 py-3 font-medium text-gray-500">箱体</th>
                 <th className="px-4 py-3 font-medium text-gray-500">重量(kg)</th>
                 <th className="px-4 py-3 font-medium text-gray-500">废弃物类型</th>
+                <th className="px-4 py-3 font-medium text-gray-500">减碳估算</th>
                 <th className="px-4 py-3 font-medium text-gray-500">获得积分</th>
               </tr>
             </thead>
@@ -121,14 +122,18 @@ export default function DepositRecords() {
                         : 'bg-amber-50 text-amber-700'
                     }`}>
                       {wasteTypeLabels[d.wasteType]}
+                      {d.wasteTag && <span className="ml-1 text-gray-400">· {d.wasteTag}</span>}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-blue-600 text-sm">
+                    {d.carbonReduction ?? Math.round(d.weight * 0.3 * 100) / 100} kg CO₂
                   </td>
                   <td className="px-4 py-3 text-compost-green font-medium">+{d.points}</td>
                 </tr>
               ))}
               {deposits.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                     暂无投放记录
                   </td>

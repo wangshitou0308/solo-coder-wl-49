@@ -2,7 +2,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { useEffect } from "react";
 import Layout from "@/components/Layout";
 import Login from "@/pages/Login";
+import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
+import Tasks from "@/pages/Tasks";
 import CompostSites from "@/pages/CompostSites";
 import CompostSiteDetail from "@/pages/CompostSiteDetail";
 import Deposit from "@/pages/Deposit";
@@ -11,6 +13,9 @@ import Monitor from "@/pages/Monitor";
 import Alerts from "@/pages/Alerts";
 import Store from "@/pages/Store";
 import Profile from "@/pages/Profile";
+import UserManagement from "@/pages/UserManagement";
+import PointsDetail from "@/pages/PointsDetail";
+import BinDetail from "@/pages/BinDetail";
 import { useAuthStore } from "@/stores/auth";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -56,8 +61,9 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route index element={<Home />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="tasks" element={<Tasks />} />
         <Route path="compost-sites" element={<CompostSites />} />
         <Route path="compost-sites/:id" element={<CompostSiteDetail />} />
         <Route path="deposit" element={<Deposit />} />
@@ -66,6 +72,9 @@ function AppRoutes() {
         <Route path="monitor/alerts" element={<Alerts />} />
         <Route path="store" element={<Store />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="points" element={<PointsDetail />} />
+        <Route path="bins/:binId" element={<BinDetail />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

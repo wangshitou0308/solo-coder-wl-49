@@ -12,16 +12,23 @@ import {
   Menu,
   X,
   Leaf,
+  Users,
+  Coins,
+  ListTodo,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 
 const navItems = [
+  { to: '/', label: '首页', icon: Leaf },
+  { to: '/tasks', label: '任务清单', icon: ListTodo, roles: ['admin', 'manager'] },
   { to: '/dashboard', label: '数据看板', icon: LayoutDashboard },
-  { to: '/compost-sites', label: '堆肥点管理', icon: MapPin },
+  { to: '/compost-sites', label: '堆肥点管理', icon: MapPin, roles: ['admin', 'manager'] },
+  { to: '/users', label: '用户管理', icon: Users, roles: ['admin'] },
   { to: '/deposit', label: '扫码投放', icon: Package },
   { to: '/deposit/records', label: '投放记录', icon: Package },
-  { to: '/monitor', label: '日常监控', icon: Thermometer },
-  { to: '/monitor/alerts', label: '告警中心', icon: AlertTriangle },
+  { to: '/monitor', label: '日常监控', icon: Thermometer, roles: ['admin', 'manager'] },
+  { to: '/monitor/alerts', label: '告警中心', icon: AlertTriangle, roles: ['admin', 'manager'] },
+  { to: '/points', label: '积分明细', icon: Coins, roles: ['resident'] },
   { to: '/store', label: '积分商城', icon: ShoppingBag },
   { to: '/profile', label: '个人中心', icon: User },
 ];
@@ -37,6 +44,10 @@ export default function Layout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const visibleItems = navItems.filter(
+    (item) => !item.roles || (user && item.roles.includes(user.role)),
+  );
 
   const handleLogout = () => {
     logout();
@@ -54,7 +65,7 @@ export default function Layout() {
         )}
       </div>
       <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ to, label, icon: Icon }) => (
+        {visibleItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

@@ -83,9 +83,17 @@ router.post('/exchange', authenticate, async (req: Request, res: Response): Prom
       );
     }
 
-    db.save();
+    const updatedUserForLedger = queryOne(db, 'SELECT points FROM users WHERE id = ?', [residentId]) as any;
+    const balanceAfter = updatedUserForLedger ? updatedUserForLedger.points : 0;
 
     const orderId = getLastInsertId(db);
+    run(db,
+      'INSERT INTO points_ledger (user_id, type, amount, source, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?)',
+      [residentId, 'spend', totalPoints, 'exchange', orderId, balanceAfter]
+    );
+
+    db.save();
+
     const order = queryOne(db, 'SELECT * FROM exchange_orders WHERE id = ?', [orderId]);
     const updatedUser = queryOne(db, 'SELECT id, name, points FROM users WHERE id = ?', [residentId]);
 

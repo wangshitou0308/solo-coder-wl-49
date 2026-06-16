@@ -28,7 +28,9 @@ CREATE TABLE IF NOT EXISTS compost_bins (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   site_id INTEGER NOT NULL REFERENCES compost_sites(id),
   name TEXT NOT NULL,
+  qr_code TEXT,
   stage TEXT NOT NULL CHECK(stage IN ('filling', 'fermenting', 'maturing', 'harvested')) DEFAULT 'filling',
+  stage_started_at TEXT,
   temp_min REAL NOT NULL DEFAULT 30,
   temp_max REAL NOT NULL DEFAULT 65,
   humidity_min REAL NOT NULL DEFAULT 40,
@@ -41,7 +43,9 @@ CREATE TABLE IF NOT EXISTS deposits (
   resident_id INTEGER NOT NULL REFERENCES users(id),
   weight REAL NOT NULL,
   waste_type TEXT NOT NULL CHECK(waste_type IN ('kitchen', 'garden')),
+  waste_tag TEXT,
   points_earned INTEGER NOT NULL,
+  carbon_reduction REAL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS monitoring_records (
@@ -109,6 +113,25 @@ CREATE TABLE IF NOT EXISTS alerts (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   resolved_at TEXT
 );
+CREATE TABLE IF NOT EXISTS stage_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bin_id INTEGER NOT NULL REFERENCES compost_bins(id),
+  from_stage TEXT NOT NULL,
+  to_stage TEXT NOT NULL,
+  operator TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS points_ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL CHECK(type IN ('earn', 'spend')),
+  amount INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  reference_id INTEGER,
+  balance_after INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 async function seedData(db: any) {
@@ -125,18 +148,18 @@ async function seedData(db: any) {
   db.run(`INSERT INTO compost_sites (name, address, latitude, longitude, created_by) VALUES ('翠苑社区堆肥站', '浙江省杭州市西湖区翠苑街道文一路120号', 30.2741, 120.1196, 1)`);
   db.run(`INSERT INTO compost_sites (name, address, latitude, longitude, created_by) VALUES ('西溪社区堆肥站', '浙江省杭州市西湖区西溪街道文二路88号', 30.2791, 120.1256, 1)`);
 
-  db.run(`INSERT INTO compost_bins (site_id, name, stage, temp_min, temp_max, humidity_min, humidity_max) VALUES (1, 'A1号仓', 'filling', 30, 65, 40, 70)`);
-  db.run(`INSERT INTO compost_bins (site_id, name, stage, temp_min, temp_max, humidity_min, humidity_max) VALUES (1, 'A2号仓', 'fermenting', 30, 65, 40, 70)`);
-  db.run(`INSERT INTO compost_bins (site_id, name, stage, temp_min, temp_max, humidity_min, humidity_max) VALUES (1, 'A3号仓', 'maturing', 30, 65, 40, 70)`);
-  db.run(`INSERT INTO compost_bins (site_id, name, stage, temp_min, temp_max, humidity_min, humidity_max) VALUES (2, 'B1号仓', 'filling', 30, 65, 40, 70)`);
-  db.run(`INSERT INTO compost_bins (site_id, name, stage, temp_min, temp_max, humidity_min, humidity_max) VALUES (2, 'B2号仓', 'fermenting', 30, 65, 40, 70)`);
-  db.run(`INSERT INTO compost_bins (site_id, name, stage, temp_min, temp_max, humidity_min, humidity_max) VALUES (2, 'B3号仓', 'filling', 30, 65, 40, 70)`);
+  db.run(`INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (1, 'A1号仓', 'QR-SITE1-A1', 'filling', datetime('now', '-14 days'), 30, 65, 40, 70)`);
+  db.run(`INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (1, 'A2号仓', 'QR-SITE1-A2', 'fermenting', datetime('now', '-10 days'), 30, 65, 40, 70)`);
+  db.run(`INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (1, 'A3号仓', 'QR-SITE1-A3', 'maturing', datetime('now', '-20 days'), 30, 65, 40, 70)`);
+  db.run(`INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (2, 'B1号仓', 'QR-SITE2-B1', 'filling', datetime('now', '-14 days'), 30, 65, 40, 70)`);
+  db.run(`INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (2, 'B2号仓', 'QR-SITE2-B2', 'fermenting', datetime('now', '-10 days'), 30, 65, 40, 70)`);
+  db.run(`INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (2, 'B3号仓', 'QR-SITE2-B3', 'filling', datetime('now', '-14 days'), 30, 65, 40, 70)`);
 
-  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, points_earned, created_at) VALUES (1, 3, 2.5, 'kitchen', 25, datetime('now', '-2 days'))`);
-  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, points_earned, created_at) VALUES (1, 4, 1.8, 'garden', 14, datetime('now', '-1 days'))`);
-  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, points_earned, created_at) VALUES (4, 3, 3.2, 'kitchen', 32, datetime('now', '-1 days'))`);
-  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, points_earned, created_at) VALUES (2, 4, 1.5, 'kitchen', 15, datetime('now'))`);
-  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, points_earned, created_at) VALUES (6, 3, 2.0, 'garden', 16, datetime('now'))`);
+  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, waste_tag, points_earned, carbon_reduction, created_at) VALUES (1, 3, 2.5, 'kitchen', 'fruit_peel', 25, 0.75, datetime('now', '-2 days'))`);
+  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, waste_tag, points_earned, carbon_reduction, created_at) VALUES (1, 4, 1.8, 'garden', 'dead_branches', 14, 0.54, datetime('now', '-1 days'))`);
+  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, waste_tag, points_earned, carbon_reduction, created_at) VALUES (4, 3, 3.2, 'kitchen', 'coffee_grounds', 32, 0.96, datetime('now', '-1 days'))`);
+  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, waste_tag, points_earned, carbon_reduction, created_at) VALUES (2, 4, 1.5, 'kitchen', 'vegetable_leaves', 15, 0.45, datetime('now'))`);
+  db.run(`INSERT INTO deposits (bin_id, resident_id, weight, waste_type, waste_tag, points_earned, carbon_reduction, created_at) VALUES (6, 3, 2.0, 'garden', 'dead_branches', 16, 0.6, datetime('now'))`);
 
   db.run(`INSERT INTO monitoring_records (bin_id, recorded_by, temperature, humidity, note, created_at) VALUES (1, 2, 45.0, 55.0, '温度正常', datetime('now', '-1 days'))`);
   db.run(`INSERT INTO monitoring_records (bin_id, recorded_by, temperature, humidity, note, created_at) VALUES (2, 2, 52.0, 60.0, '发酵良好', datetime('now', '-1 days'))`);
@@ -154,6 +177,19 @@ async function seedData(db: any) {
   db.run(`INSERT INTO products (name, type, description, points_price, stock, image_url) VALUES ('薄荷种子包', 'plant', '可食用薄荷种子，易于种植', 50, 50, '')`);
 
   db.run(`INSERT INTO alerts (bin_id, type, message, suggestion, status, created_at) VALUES (5, 'high_humidity', 'B2号仓湿度超过上限', '建议增加翻堆频率，改善通风条件', 'active', datetime('now', '-1 days'))`);
+
+  db.run(`INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note, created_at) VALUES (1, 'filling', 'filling', 'system', '初始阶段', datetime('now', '-14 days'))`);
+  db.run(`INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note, created_at) VALUES (2, 'filling', 'fermenting', '李秀英', '进入发酵阶段', datetime('now', '-10 days'))`);
+  db.run(`INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note, created_at) VALUES (3, 'fermenting', 'maturing', '李秀英', '进入腐熟阶段', datetime('now', '-20 days'))`);
+  db.run(`INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note, created_at) VALUES (4, 'filling', 'filling', 'system', '初始阶段', datetime('now', '-14 days'))`);
+  db.run(`INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note, created_at) VALUES (5, 'filling', 'fermenting', '李秀英', '进入发酵阶段', datetime('now', '-10 days'))`);
+  db.run(`INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note, created_at) VALUES (6, 'filling', 'filling', 'system', '初始阶段', datetime('now', '-14 days'))`);
+
+  db.run(`INSERT INTO points_ledger (user_id, type, amount, source, reference_id, balance_after, created_at) VALUES (3, 'earn', 25, 'deposit', 1, 25, datetime('now', '-2 days'))`);
+  db.run(`INSERT INTO points_ledger (user_id, type, amount, source, reference_id, balance_after, created_at) VALUES (4, 'earn', 14, 'deposit', 2, 14, datetime('now', '-1 days'))`);
+  db.run(`INSERT INTO points_ledger (user_id, type, amount, source, reference_id, balance_after, created_at) VALUES (3, 'earn', 32, 'deposit', 3, 57, datetime('now', '-1 days'))`);
+  db.run(`INSERT INTO points_ledger (user_id, type, amount, source, reference_id, balance_after, created_at) VALUES (4, 'earn', 15, 'deposit', 4, 29, datetime('now'))`);
+  db.run(`INSERT INTO points_ledger (user_id, type, amount, source, reference_id, balance_after, created_at) VALUES (3, 'earn', 16, 'deposit', 5, 73, datetime('now'))`);
 }
 
 export function queryOne(db: any, sql: string, params: any[] = []): any | null {

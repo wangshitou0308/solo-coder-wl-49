@@ -14,6 +14,8 @@ import depositRoutes from './routes/deposits.js'
 import monitoringRoutes from './routes/monitoring.js'
 import storeRoutes from './routes/store.js'
 import statsRoutes from './routes/stats.js'
+import tasksRoutes from './routes/tasks.js'
+import usersRoutes from './routes/users.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -32,6 +34,8 @@ app.use('/api/deposits', depositRoutes)
 app.use('/api/monitoring', monitoringRoutes)
 app.use('/api/store', storeRoutes)
 app.use('/api/stats', statsRoutes)
+app.use('/api/tasks', tasksRoutes)
+app.use('/api/users', usersRoutes)
 
 app.use(
   '/api/health',

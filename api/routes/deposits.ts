@@ -9,16 +9,26 @@ const POINTS_PER_KG: Record<string, number> = {
   garden: 8,
 };
 
+const WASTE_TAG_POINTS_BONUS: Record<string, number> = {
+  fruit_peel: 1,
+  coffee_grounds: 2,
+  vegetable_leaves: 1,
+  dead_branches: 0,
+  tea_leaves: 1,
+  eggshells: 1,
+};
+
 interface CreateDepositBody {
   binId: number;
   residentId: number;
   weight: number;
   wasteType: 'kitchen' | 'garden';
+  wasteTag?: string;
 }
 
 router.post('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { binId, residentId, weight, wasteType } = req.body as CreateDepositBody;
+    const { binId, residentId, weight, wasteType, wasteTag } = req.body as CreateDepositBody;
     if (!binId || !residentId || !weight || !wasteType) {
       res.status(400).json({ success: false, error: '仓库ID、居民ID、重量和垃圾类型不能为空' });
       return;
@@ -37,17 +47,28 @@ router.post('/', authenticate, async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const pointsEarned = Math.round(weight * POINTS_PER_KG[wasteType]);
+    const bonus = wasteTag ? (WASTE_TAG_POINTS_BONUS[wasteTag] ?? 0) : 0;
+    const pointsEarned = Math.round(weight * POINTS_PER_KG[wasteType]) + bonus;
+    const carbonReduction = Math.round(weight * 0.3 * 100) / 100;
 
     run(db,
-      'INSERT INTO deposits (bin_id, resident_id, weight, waste_type, points_earned) VALUES (?, ?, ?, ?, ?)',
-      [binId, residentId, weight, wasteType, pointsEarned]
+      'INSERT INTO deposits (bin_id, resident_id, weight, waste_type, waste_tag, points_earned, carbon_reduction) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [binId, residentId, weight, wasteType, wasteTag || null, pointsEarned, carbonReduction]
     );
 
     run(db, 'UPDATE users SET points = points + ? WHERE id = ?', [pointsEarned, residentId]);
+
+    const updatedUser = queryOne(db, 'SELECT points FROM users WHERE id = ?', [residentId]) as any;
+    const balanceAfter = updatedUser ? updatedUser.points : 0;
+
+    run(db,
+      'INSERT INTO points_ledger (user_id, type, amount, source, reference_id, balance_after) VALUES (?, ?, ?, ?, ?, ?)',
+      [residentId, 'earn', pointsEarned, 'deposit', getLastInsertId(db), balanceAfter]
+    );
+
     db.save();
 
-    const depositId = getLastInsertId(db);
+    const depositId = getLastInsertId(db) - 1;
 
     const deposit = queryOne(db, 'SELECT * FROM deposits WHERE id = ?', [depositId]);
     const user = queryOne(db, 'SELECT id, phone, name, role, points FROM users WHERE id = ?', [residentId]);

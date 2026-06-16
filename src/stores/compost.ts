@@ -6,7 +6,9 @@ export type BinStage = 'filling' | 'fermenting' | 'maturing' | 'harvested';
 export interface Bin {
   id: string;
   name: string;
+  qrCode?: string;
   stage: BinStage;
+  stageStartedAt?: string;
   tempMin: number;
   tempMax: number;
   humidityMin: number;

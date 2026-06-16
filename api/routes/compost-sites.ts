@@ -71,9 +71,15 @@ router.post('/', authenticate, requireRole('admin'), async (req: Request, res: R
 
     if (bins && bins.length > 0) {
       for (const bin of bins) {
+        const qrCode = `QR-SITE${siteId}-${bin.name.replace(/\s+/g, '')}`;
         run(db,
-          'INSERT INTO compost_bins (site_id, name, temp_min, temp_max, humidity_min, humidity_max) VALUES (?, ?, ?, ?, ?, ?)',
-          [siteId, bin.name, bin.temp_min ?? 30, bin.temp_max ?? 65, bin.humidity_min ?? 40, bin.humidity_max ?? 70]
+          'INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (?, ?, ?, ?, datetime(\'now\'), ?, ?, ?, ?)',
+          [siteId, bin.name, qrCode, 'filling', bin.temp_min ?? 30, bin.temp_max ?? 65, bin.humidity_min ?? 40, bin.humidity_max ?? 70]
+        );
+        const binId = getLastInsertId(db);
+        run(db,
+          'INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note) VALUES (?, ?, ?, ?, ?)',
+          [binId, 'filling', 'filling', 'system', '初始阶段']
         );
       }
     }
@@ -147,13 +153,18 @@ router.post('/:id/bins', authenticate, requireRole('admin'), async (req: Request
       return;
     }
 
+    const qrCode = `QR-SITE${req.params.id}-${name.replace(/\s+/g, '')}`;
     run(db,
-      'INSERT INTO compost_bins (site_id, name, temp_min, temp_max, humidity_min, humidity_max) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.params.id, name, temp_min ?? 30, temp_max ?? 65, humidity_min ?? 40, humidity_max ?? 70]
+      'INSERT INTO compost_bins (site_id, name, qr_code, stage, stage_started_at, temp_min, temp_max, humidity_min, humidity_max) VALUES (?, ?, ?, ?, datetime(\'now\'), ?, ?, ?, ?)',
+      [req.params.id, name, qrCode, 'filling', temp_min ?? 30, temp_max ?? 65, humidity_min ?? 40, humidity_max ?? 70]
+    );
+    const binId = getLastInsertId(db);
+    run(db,
+      'INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note) VALUES (?, ?, ?, ?, ?)',
+      [binId, 'filling', 'filling', 'system', '初始阶段']
     );
     db.save();
 
-    const binId = getLastInsertId(db);
     const bin = queryOne(db, 'SELECT * FROM compost_bins WHERE id = ?', [binId]);
     res.status(201).json({ success: true, data: bin });
   } catch (error: any) {
@@ -161,7 +172,7 @@ router.post('/:id/bins', authenticate, requireRole('admin'), async (req: Request
   }
 });
 
-router.put('/:siteId/bins/:binId', authenticate, requireRole('admin'), async (req: Request, res: Response): Promise<void> => {
+router.put('/:siteId/bins/:binId', authenticate, requireRole('admin', 'manager'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { stage, temp_min, temp_max, humidity_min, humidity_max } = req.body as UpdateBinBody;
     const db = await getDb();
@@ -187,7 +198,7 @@ router.put('/:siteId/bins/:binId', authenticate, requireRole('admin'), async (re
   }
 });
 
-router.post('/:siteId/bins/:binId/advance-stage', authenticate, requireRole('admin'), async (req: Request, res: Response): Promise<void> => {
+router.post('/:siteId/bins/:binId/advance-stage', authenticate, requireRole('admin', 'manager'), async (req: Request, res: Response): Promise<void> => {
   try {
     const db = await getDb();
     const existing = queryOne(db, 'SELECT * FROM compost_bins WHERE id = ? AND site_id = ?', [req.params.binId, req.params.siteId]);
@@ -210,7 +221,13 @@ router.post('/:siteId/bins/:binId/advance-stage', authenticate, requireRole('adm
       return;
     }
 
-    run(db, 'UPDATE compost_bins SET stage = ? WHERE id = ?', [nextStage, req.params.binId]);
+    run(db, 'UPDATE compost_bins SET stage = ?, stage_started_at = datetime(\'now\') WHERE id = ?', [nextStage, req.params.binId]);
+
+    run(db,
+      'INSERT INTO stage_records (bin_id, from_stage, to_stage, operator, note) VALUES (?, ?, ?, ?, ?)',
+      [req.params.binId, bin.stage, nextStage, req.user!.name, null]
+    );
+
     db.save();
 
     const updated = queryOne(db, 'SELECT * FROM compost_bins WHERE id = ?', [req.params.binId]);
